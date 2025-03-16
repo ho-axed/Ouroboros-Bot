@@ -9,9 +9,7 @@ const client = new Client({
   ],
 });
 
-let workStartTime = 0;
-let breakStartTime = 0;
-let totalTimeWorked = 0;
+const userWorkData = {}; // object to save every user data
 
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user?.tag}`);
@@ -21,27 +19,39 @@ client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
 
   const content = message.content.toLowerCase();
+  const userId = message.author.id; // User id
+
+  if (!userWorkData[userId]) {
+    // Initialize user if it doesn't exist
+    userWorkData[userId] = {
+      workStartTime: 0,
+      breakStartTime: 0,
+      totalTimeWorked: 0,
+    };
+  }
+
+  const userData = userWorkData[userId];
 
   if (content === "inicio trabajo") {
-    workStartTime = Date.now();
-    totalTimeWorked = 0; // Reset timer.
+    userData.workStartTime = Date.now();
+    userData.totalTimeWorked = 0; // reset timer
     message.reply("¡Tiempo de trabajo iniciado!");
-  } else if (content === "empiezo descanso" && workStartTime) {
-    breakStartTime = Date.now();
-    totalTimeWorked += breakStartTime - workStartTime;
+  } else if (content === "empiezo descanso" && userData.workStartTime) {
+    userData.breakStartTime = Date.now();
+    userData.totalTimeWorked += userData.breakStartTime - userData.workStartTime;
     message.reply("¡Disfruta tu descanso!");
-  } else if (content === "termino descanso" && breakStartTime) {
-    workStartTime = Date.now();
-    breakStartTime = 0;
+  } else if (content === "termino descanso" && userData.breakStartTime) {
+    userData.workStartTime = Date.now();
+    userData.breakStartTime = 0;
     message.reply("¡De vuelta al trabajo!");
-  } else if (content === "terminar trabajo" && workStartTime) {
-    totalTimeWorked += Date.now() - workStartTime;
-    workStartTime = 0;
+  } else if (content === "terminar trabajo" && userData.workStartTime) {
+    userData.totalTimeWorked += Date.now() - userData.workStartTime;
+    userData.workStartTime = 0;
 
-    const hoursWorked = (totalTimeWorked / (1000 * 60 * 60)).toFixed(2); // get hours as decimal
+    const hoursWorked = (userData.totalTimeWorked / (1000 * 60 * 60)).toFixed(2); // get hours in decimal
     const user = message.author.tag;
 
-    // send data to API to the spreadsheet
+    // Send data
     const result = await sendToApi(user, hoursWorked);
 
     if (result.success) {
@@ -56,7 +66,7 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-// send data to api function
+// Send data to API Function
 async function sendToApi(user, hoursWorked) {
   const apiUrl = process.env.API_URL;
 
